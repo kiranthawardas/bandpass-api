@@ -131,12 +131,11 @@ func AuthorizeEndpoint(code string)(body string) {
 	var codeString string = "code=" + code
 
 	var redirect_uri string
-	if (os.Args[1] == "local") {
+	if (len(os.Args) > 1 && os.Args[1] == "local") {
 		redirect_uri = "http://localhost:3000"
 	} else {
 		redirect_uri = "https://kiranthawardas.github.io/bandpass"
 	}
-	fmt.Println(redirect_uri)
 
 
 	request := gorequest.New()
@@ -185,7 +184,7 @@ func SpotifyAuthorization(code string) (authToken string) {
 	var codeString string = "refresh_token=" + code
 
 	var redirect_uri string
-	if (os.Args[1] == "local") {
+	if (len(os.Args) > 1 && os.Args[1] == "local") {
 		redirect_uri = "http://localhost:3000"
 	} else {
 		redirect_uri = "https://kiranthawardas.github.io/bandpass"
