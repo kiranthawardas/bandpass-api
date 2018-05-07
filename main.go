@@ -5,10 +5,11 @@ import (
 	"os"
 	"encoding/base64"
     "encoding/json"
-    //"log"
+    "log"
     "math"
     "net/http"
 	"io/ioutil"
+    "github.com/gorilla/mux"
     "github.com/parnurzeal/gorequest"
     "github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
@@ -129,11 +130,20 @@ func AuthorizeEndpoint(code string)(body string) {
 	var authString string = "Basic " + clientID;
 	var codeString string = "code=" + code
 
+	var redirect_uri string
+	if (os.Args[1] == "local") {
+		redirect_uri = "http://localhost:3000"
+	} else {
+		redirect_uri = "https://kiranthawardas.github.io/bandpass"
+	}
+	fmt.Println(redirect_uri)
+
+
 	request := gorequest.New()
 	resp, _, errs := request.Post(authURL).
 	  Set("Authorization", authString).
 	  Set("Content-Type", "application/x-www-form-urlencoded").
-	  Send("grant_type=authorization_code&" + codeString + "&redirect_uri=https://kiranthawardas.github.io/bandpass").
+	  Send("grant_type=authorization_code&" + codeString + "&redirect_uri=" + redirect_uri).
 	  End()
 	if errs != nil {
 		panic("Want stack trace")
@@ -174,11 +184,18 @@ func SpotifyAuthorization(code string) (authToken string) {
 	var authString string = "Basic " + clientID;
 	var codeString string = "refresh_token=" + code
 
+	var redirect_uri string
+	if (os.Args[1] == "local") {
+		redirect_uri = "http://localhost:3000"
+	} else {
+		redirect_uri = "https://kiranthawardas.github.io/bandpass"
+	}
+
 	request := gorequest.New()
 	resp, _, errs := request.Post(authURL).
 	  Set("Authorization", authString).
 	  Set("Content-Type", "application/x-www-form-urlencoded").
-	  Send("grant_type=refresh_token&" + codeString + "&redirect_uri=https://kiranthawardas.github.io/bandpass").
+	  Send("grant_type=refresh_token&" + codeString + "&redirect_uri=" + redirect_uri).
 	  End()
 	if errs != nil {
 		panic("Want stack trace")
@@ -468,6 +485,38 @@ func Handler(request events.APIGatewayProxyRequest) (events.APIGatewayProxyRespo
 	}, nil
 }
 
+func localHandler(w http.ResponseWriter, req *http.Request) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Access-Control-Allow-Methods", "GET,HEAD,OPTIONS,POST,PUT")
+	w.Header().Set("Access-Control-Allow-Headers", "Access-Control-Allow-Headers, Origin,Accept, X-Requested-With, Content-Type, Access-Control-Request-Method, Access-Control-Request-Headers")
+
+	requestBody, _ := ioutil.ReadAll(req.Body)
+	reqBody := string(requestBody)
+	params := mux.Vars(req)
+	var body string
+	if (params["endpoint"] == "authorize") {
+		body = AuthorizeEndpoint(req.FormValue("code"))
+	} else if (params["endpoint"] == "getplaylisttracks") {
+		body = GetPlaylistTracksEndpoint(req.FormValue("userID"), req.FormValue("playlistID"), req.FormValue("code"))
+	} else if (params["endpoint"] == "createplaylist") {
+		body = CreatePlaylistEndpoint(req.FormValue("userID"), req.FormValue("playlistName"), req.FormValue("code"), reqBody)
+	} else if (params["endpoint"] == "getplaylists") {
+		body = GetPlaylistsEndpoint(req.FormValue("code"))
+	} else {
+		fmt.Println("ERROR")
+		fmt.Fprintf(w, body)
+	}
+	fmt.Fprintf(w, body)
+}
+
 func main() {
-    lambda.Start(Handler)
+	if (len(os.Args) > 1) {
+		if (os.Args[1] == "local") {
+		    router := mux.NewRouter()
+		    router.HandleFunc("/bandpass/{endpoint}", localHandler)
+		    log.Fatal(http.ListenAndServe(":12345", router))
+		}
+	} else {
+    	lambda.Start(Handler)
+	}
 }
